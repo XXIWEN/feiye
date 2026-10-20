@@ -296,7 +296,7 @@ input,textarea{font-family:var(--ui);color:inherit}
     activeWorkId: null, activeChapterId: null
   };
 
-  function importSetup(){
+  async function importSetup(){
     var m = location.hash.match(/^#setup=(.+)$/);
     if(!m) return;
     try{
@@ -305,7 +305,16 @@ input,textarea{font-family:var(--ui);color:inherit}
       var bin = atob(s);
       var bytes = new Uint8Array(bin.length);
       for(var i=0;i<bin.length;i++) bytes[i] = bin.charCodeAt(i);
-      var data = JSON.parse(new TextDecoder('utf-8').decode(bytes));
+      var text;
+      if(typeof DecompressionStream !== 'undefined'){
+        var ds = new DecompressionStream('gzip');
+        var stream = new Blob([bytes]).stream().pipeThrough(ds);
+        var resp = new Response(stream);
+        text = await resp.text();
+      } else {
+        text = new TextDecoder('utf-8').decode(bytes);
+      }
+      var data = JSON.parse(text);
       if(data.key) state.settings.apiKey = data.key;
       if(data.style) state.settings.stylePrompt = data.style;
       save();

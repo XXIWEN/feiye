@@ -4,5 +4,9 @@ live_check.py
 e2e_test.py
 embed_key.py
 refactor_private.py
+gen_link.py
+gen_link2.py
+gen_link3.py
+link.txt
 style_full.txt
 .DS_Store
