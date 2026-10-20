@@ -392,7 +392,10 @@ body.reading .read-bar{display:flex;align-items:center;flex-wrap:wrap}
       }
       var data = JSON.parse(text);
       if(data.key) state.settings.apiKey = data.key;
-      if(data.style) state.settings.stylePrompt = data.style;
+      if(data.style){
+        state.settings.stylePrompt = data.style;
+        state.works.forEach(function(w){ w.stylePrompt = data.style; });
+      }
       save();
       history.replaceState(null, '', location.pathname + location.search);
       toast('已导入密钥与文风设定');
