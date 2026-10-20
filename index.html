@@ -356,6 +356,18 @@ input,textarea{font-family:var(--ui);color:inherit}
     if(!w) return null;
     return w.chapters.find(function(c){ return c.id === state.activeChapterId; }) || w.chapters[0];
   }
+  // 当前这本书的文风：优先用作品自身的，否则回退到新书默认文风
+  function currentStyle(){
+    var w = currentWork();
+    return (w && w.stylePrompt) || state.settings.stylePrompt || DEFAULT_STYLE;
+  }
+  // 迁移：给没有独立文风的作品补上默认文风（兼容旧数据）
+  function migrate(){
+    var seed = state.settings.stylePrompt || DEFAULT_STYLE;
+    state.works.forEach(function(w){
+      if(!w.stylePrompt) w.stylePrompt = seed;
+    });
+  }
 
   var els = {};
   ['sidebar','works','menuBtn','mask','topTitle','topMeta','editor','aiBar','aiHint','loading',
@@ -435,13 +447,17 @@ input,textarea{font-family:var(--ui);color:inherit}
   // 侧栏交互（事件委托）
   els.works.addEventListener('click', function(e){
     var t = e.target;
-    var w = t.getAttribute && t.getAttribute('data-w');
-    var c = t.getAttribute && t.getAttribute('data-c');
-    var wdel = t.getAttribute && t.getAttribute('data-wdel');
-    var cdel = t.getAttribute && t.getAttribute('data-cdel');
-    var addchap = t.getAttribute && t.getAttribute('data-addchap');
-    var wren = t.getAttribute && t.getAttribute('data-wren');
-    var cren = t.getAttribute && t.getAttribute('data-cren');
+    function attr(name){
+      var el = (t && t.closest) ? t.closest('[' + name + ']') : null;
+      return el ? el.getAttribute(name) : null;
+    }
+    var w = attr('data-w');
+    var c = attr('data-c');
+    var wdel = attr('data-wdel');
+    var cdel = attr('data-cdel');
+    var addchap = attr('data-addchap');
+    var wren = attr('data-wren');
+    var cren = attr('data-cren');
 
     if(wdel){
       if(confirm('删除这部作品及其所有章节？')) delWork(wdel);
@@ -475,7 +491,7 @@ input,textarea{font-family:var(--ui);color:inherit}
   function delWork(id){
     state.works = state.works.filter(function(w){ return w.id !== id; });
     if(!state.works.length){
-      state.works = [{ id: uid(), title: '未命名', chapters: [{ id: uid(), title: '第一章', content: '' }] }];
+      state.works = [{ id: uid(), title: '未命名', stylePrompt: state.settings.stylePrompt || DEFAULT_STYLE, chapters: [{ id: uid(), title: '第一章', content: '' }] }];
     }
     state.activeWorkId = state.works[0].id;
     state.activeChapterId = state.works[0].chapters[0].id;
@@ -522,7 +538,7 @@ input,textarea{font-family:var(--ui);color:inherit}
   // btnNewWork 在 render 后重建，改用一个全局监听
   document.addEventListener('click', function(e){
     if(e.target && e.target.id === 'btnNewWork'){
-      var w = { id: uid(), title: '未命名', chapters: [{ id: uid(), title: '第一章', content: '' }] };
+      var w = { id: uid(), title: '未命名', stylePrompt: state.settings.stylePrompt || DEFAULT_STYLE, chapters: [{ id: uid(), title: '第一章', content: '' }] };
       state.works.push(w);
       state.activeWorkId = w.id; state.activeChapterId = w.chapters[0].id;
       save(); loadEditor(); render();
@@ -604,7 +620,7 @@ input,textarea{font-family:var(--ui);color:inherit}
       : '请开篇写一段，第一人称，女主苏芊芊怀孕中，直接出正文：';
     showLoading(true); hideResult();
     try{
-      var out = await callAI(buildMessages(state.settings.stylePrompt, prompt));
+      var out = await callAI(buildMessages(currentStyle(), prompt));
       showResult(out, 'continue', '');
     }catch(e){
       toast(e.message || '生成失败');
@@ -627,7 +643,7 @@ input,textarea{font-family:var(--ui);color:inherit}
     var prompt = '请把下面这段改写成更直给、更口语、身体细节更写实的版本，保持第一人称和文风，直接出改写后的正文：\n\n' + sel;
     showLoading(true); hideResult();
     try{
-      var out = await callAI(buildMessages(state.settings.stylePrompt, prompt));
+      var out = await callAI(buildMessages(currentStyle(), prompt));
       showResult(out, 'rewrite', '改写自 ' + (selectedText()? '选中段落' : '文末段落'));
     }catch(e){
       toast(e.message || '生成失败');
@@ -664,7 +680,7 @@ input,textarea{font-family:var(--ui);color:inherit}
 
   // 设置
   function openSettings(){
-    openModal('设置', '文风设定会作为 AI 的系统提示；密钥只存在你本机浏览器，不上传。', 'settings');
+    openModal('设置', '文风按每本书分开设置；密钥只存在你本机浏览器，不上传。', 'settings');
   }
   els.btnSettings.addEventListener('click', openSettings);
 
@@ -674,7 +690,7 @@ input,textarea{font-family:var(--ui);color:inherit}
     var html = '';
     if(mode === 'settings'){
       html += '<div class="field"><label>DeepSeek 密钥（DEEPSEEK_API_KEY）</label><input type="password" id="inpKey" placeholder="sk-..."></div>';
-      html += '<div class="field"><label>文风设定（系统提示词）</label><textarea id="inpStyle"></textarea></div>';
+      html += '<div class="field"><label>文风设定 —— 《'+esc(currentWork().title)+'》这本书</label><textarea id="inpStyle"></textarea></div>';
       html += '<div class="row"><button class="btn ghost" id="mCancel">取消</button><button class="btn solid" id="mSave">保存</button></div>';
     } else if(mode === 'scene'){
       html += '<div class="field"><label>情节描述</label><textarea id="inpScene" placeholder="例如：女主深夜回家，发现男主一直在门口等她……"></textarea></div>';
@@ -688,10 +704,11 @@ input,textarea{font-family:var(--ui);color:inherit}
 
     if(mode === 'settings'){
       document.getElementById('inpKey').value = state.settings.apiKey;
-      document.getElementById('inpStyle').value = state.settings.stylePrompt;
+      document.getElementById('inpStyle').value = currentStyle();
       document.getElementById('mSave').addEventListener('click', function(){
         state.settings.apiKey = document.getElementById('inpKey').value.trim();
-        state.settings.stylePrompt = document.getElementById('inpStyle').value;
+        var w = currentWork();
+        if(w) w.stylePrompt = document.getElementById('inpStyle').value;
         save(); closeModal(); toast('已保存');
       });
     } else if(mode === 'scene'){
@@ -701,7 +718,7 @@ input,textarea{font-family:var(--ui);color:inherit}
         closeModal();
         showLoading(true); hideResult();
         try{
-          var out = await callAI(buildMessages(state.settings.stylePrompt, '请按下面情节写一个完整成文场景，第一人称，直接出正文：\n\n' + plot));
+          var out = await callAI(buildMessages(currentStyle(), '请按下面情节写一个完整成文场景，第一人称，直接出正文：\n\n' + plot));
           showResult(out, 'scene', '');
         }catch(e){
           toast(e.message || '生成失败');
@@ -764,7 +781,7 @@ input,textarea{font-family:var(--ui);color:inherit}
             if(d.stylePrompt) state.settings.stylePrompt = d.stylePrompt;
             state.activeWorkId = state.works[0].id;
             state.activeChapterId = state.works[0].chapters[0].id;
-            save(); loadEditor(); render(); toast('导入成功');
+            migrate(); save(); loadEditor(); render(); toast('导入成功');
           } else {
             toast('文件格式不对');
           }
@@ -783,18 +800,23 @@ input,textarea{font-family:var(--ui);color:inherit}
   }
 
   // 初始化
-  load();
-  importSetup();
-  if(!state.activeWorkId || !state.activeChapterId){
-    state.activeWorkId = state.works[0].id;
-    state.activeChapterId = state.works[0].chapters[0].id;
+  async function boot(){
+    load();
+    await importSetup();
+    migrate();
+    save();
+    if(!state.activeWorkId || !state.activeChapterId){
+      state.activeWorkId = state.works[0].id;
+      state.activeChapterId = state.works[0].chapters[0].id;
+    }
+    // 校验激活 id 仍存在
+    var w = currentWork();
+    if(!w){ state.works = [{ id: uid(), title:'未命名', stylePrompt: state.settings.stylePrompt || DEFAULT_STYLE, chapters:[{ id:uid(), title:'第一章', content:'' }] }]; state.activeWorkId = state.works[0].id; state.activeChapterId = state.works[0].chapters[0].id; }
+    else if(!currentChapter()){ state.activeChapterId = w.chapters[0].id; }
+    loadEditor();
+    render();
   }
-  // 校验激活 id 仍存在
-  var w = currentWork();
-  if(!w){ state.works = [{ id: uid(), title:'未命名', chapters:[{ id:uid(), title:'第一章', content:'' }] }]; state.activeWorkId = state.works[0].id; state.activeChapterId = state.works[0].chapters[0].id; }
-  else if(!currentChapter()){ state.activeChapterId = w.chapters[0].id; }
-  loadEditor();
-  render();
+  boot();
 })();
 </script>
 </body>
