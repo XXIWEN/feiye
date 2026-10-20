@@ -222,14 +222,25 @@ body.reading .editor{
   padding:56px 28px 90px;
   font-size:19px;line-height:2.1;
 }
-/* 翻页方式 */
-body.reading.mode-tap .editor,body.reading.mode-flip .editor{overflow:hidden}
+/* 翻页方式：点击 / 翻书 = 左右横向翻页（CSS 分栏，一栏一页） */
+body.reading.mode-tap .editor,body.reading.mode-flip .editor{
+  max-width:none;margin:0;
+  padding:48px 0 60px;
+  column-width:100vw;column-gap:0;column-fill:auto;
+  overflow:hidden;white-space:normal;
+}
+body.reading.mode-tap .editor>div,body.reading.mode-flip .editor>div{
+  padding-left:44px;padding-right:44px;
+}
 body.reading.mode-flip .editor.flip-anim{animation:flipPage .45s ease}
 @keyframes flipPage{
   0%{transform:perspective(1200px) rotateY(0)}
   45%{transform:perspective(1200px) rotateY(-26deg);opacity:.55}
   100%{transform:perspective(1200px) rotateY(0)}
 }
+/* 阅读模式：隐藏划掉的旧文，改写后的新文显示为正常正文 */
+body.reading .editor del{display:none}
+body.reading .editor ins{color:inherit;background:none;text-decoration:none;padding:0}
 /* 阅读底部工具栏 */
 .read-bar{
   display:none;position:fixed;left:0;right:0;bottom:0;z-index:79;
@@ -675,7 +686,7 @@ body.reading .read-bar{display:flex;align-items:center;flex-wrap:wrap}
     document.body.classList.toggle('reading', reading);
     applyReadingMode();
     els.editor.setAttribute('contenteditable', reading ? 'false' : 'true');
-    els.editor.scrollTop = 0;
+    els.editor.scrollTop = 0; els.editor.scrollLeft = 0;
     if(reading){ els.editor.blur(); closeSidebar(); hideResult(); }
     else { els.editor.focus(); }
   }
@@ -689,7 +700,7 @@ body.reading .read-bar{display:flex;align-items:center;flex-wrap:wrap}
       state.settings.readingMode = readingMode;
       applyReadingMode();
       save();
-      els.editor.scrollTop = 0;
+      els.editor.scrollTop = 0; els.editor.scrollLeft = 0;
     });
   });
 
@@ -706,7 +717,7 @@ body.reading .read-bar{display:flex;align-items:center;flex-wrap:wrap}
     if(!target){ toast(dir === 1 ? '已经是最后一章' : '已经是第一章'); return; }
     state.activeChapterId = target.id;
     save(); loadEditor(); render();
-    els.editor.scrollTop = 0;
+    els.editor.scrollTop = 0; els.editor.scrollLeft = 0;
   }
   function openToc(){
     var w = currentWork();
@@ -715,18 +726,18 @@ body.reading .read-bar{display:flex;align-items:center;flex-wrap:wrap}
   }
   function pageTurn(dir){
     var el = els.editor;
-    var step = Math.max(el.clientHeight - 30, 50);
     if(dir === 1){
-      if(el.scrollTop + el.clientHeight >= el.scrollHeight - 5){ goChapter(1); return; }
+      if(el.scrollLeft + el.clientWidth >= el.scrollWidth - 5){ goChapter(1); return; }
     } else {
-      if(el.scrollTop <= 5){ goChapter(-1); return; }
+      if(el.scrollLeft <= 5){ goChapter(-1); return; }
     }
     if(readingMode === 'flip'){
       el.classList.remove('flip-anim');
       void el.offsetWidth;
       el.classList.add('flip-anim');
     }
-    el.scrollBy({ top: dir === 1 ? step : -step, behavior: 'smooth' });
+    var step = el.clientWidth;
+    el.scrollBy({ left: dir === 1 ? step : -step, behavior: 'smooth' });
   }
   els.rbPrev.addEventListener('click', function(){ goChapter(-1); });
   els.rbNext.addEventListener('click', function(){ goChapter(1); });
@@ -976,7 +987,7 @@ body.reading .read-bar{display:flex;align-items:center;flex-wrap:wrap}
         btn.addEventListener('click', function(){
           state.activeChapterId = btn.getAttribute('data-toc');
           save(); loadEditor(); render();
-          els.editor.scrollTop = 0;
+          els.editor.scrollTop = 0; els.editor.scrollLeft = 0;
           closeModal();
         });
       });
