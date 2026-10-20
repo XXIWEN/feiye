@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <meta name="theme-color" content="#FBF4F1">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -838,8 +838,15 @@ body.reading .read-bar{display:flex;align-items:center;flex-wrap:wrap}
     });
     if(!res.ok){
       var txt = '';
-      try{ txt = (await res.json()).error && (await res.json()).error.message; }catch(e){}
-      throw new Error('请求失败 ' + res.status + (txt?(' · '+txt):''));
+      try{
+        var j = await res.json();
+        if(j && j.error && j.error.message) txt = j.error.message;
+      }catch(e){}
+      var hint = res.status === 401 ? '（密钥无效，去「密钥设置」检查）'
+        : res.status === 402 ? '（余额不足，去 platform.deepseek.com 充值）'
+        : res.status === 429 ? '（请求太频繁，稍等再试）'
+        : '';
+      throw new Error('请求失败 ' + res.status + hint + (txt ? (' · ' + txt) : ''));
     }
     var data = await res.json();
     var out = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
@@ -871,15 +878,25 @@ body.reading .read-bar{display:flex;align-items:center;flex-wrap:wrap}
     return null;
   }
 
+  // 取光标之前的正文文本（用于「继续写」从光标处接着写）
+  function textBeforeCaret(){
+    if(!caretAt) return '';
+    var pre = document.createRange();
+    pre.selectNodeContents(els.editor);
+    pre.setEnd(caretAt.startContainer, caretAt.startOffset);
+    var s = pre.toString().replace(/\s+$/,'');
+    return s.length > 1600 ? s.slice(-1600) : s;
+  }
+
   // 把新场景作为独立段落，插到光标所在的段落之后
   function insertAtCaret(html){
-    if(!sceneCaret) return false;
+    if(!caretAt) return false;
     var tmp = document.createElement('div');
     tmp.innerHTML = html;
     var frag = document.createDocumentFragment();
     while(tmp.firstChild) frag.appendChild(tmp.firstChild);
     // 找光标所在的块级段落
-    var node = sceneCaret.startContainer;
+    var node = caretAt.startContainer;
     var block = null;
     while(node && node !== els.editor){
       if(node.nodeType === 1 && node.tagName === 'DIV'){ block = node; break; }
@@ -895,7 +912,7 @@ body.reading .read-bar{display:flex;align-items:center;flex-wrap:wrap}
 
   var lastResult = { text:'', mode:'' };
   var rewriteSource = null; // { text, label } 改写时选中的原文段落
-  var sceneCaret = null; // 「新场景」生成后插入的光标位置（Range 克隆）
+  var caretAt = null; // 「新场景」生成后插入的光标位置（Range 克隆）
 
   function showLoading(on){
     els.loading.classList.toggle('on', on);
@@ -907,7 +924,7 @@ body.reading .read-bar{display:flex;align-items:center;flex-wrap:wrap}
     els.aiOut.textContent = text;
     els.aiNote.textContent = note || '';
     els.btnInsert.textContent = (mode === 'rewrite') ? '替换原文'
-      : (mode === 'scene' && sceneCaret) ? '插入到光标处'
+      : ((mode === 'scene' || mode === 'continue') && caretAt) ? '插入到光标处'
       : '插入文末';
     els.result.classList.add('on');
   }
@@ -916,9 +933,10 @@ body.reading .read-bar{display:flex;align-items:center;flex-wrap:wrap}
   async function doContinue(){
     var c = currentChapter();
     if(!c) return;
-    var ctx = lastText(1600);
+    caretAt = captureCaret();
+    var ctx = caretAt ? textBeforeCaret() : lastText(1600);
     var prompt = ctx
-      ? '以下是当前文稿的最后部分，请接着往下写，保持文风与视角，直接出正文不要说明：\n\n' + ctx
+      ? '以下是当前光标之前的文稿内容，请从这里接着往下写，保持文风与视角，直接出正文不要说明：\n\n' + ctx
       : '请开篇写一段，遵循文风与视角设定，直接出正文：';
     showLoading(true); hideResult();
     try{
@@ -955,8 +973,8 @@ body.reading .read-bar{display:flex;align-items:center;flex-wrap:wrap}
   }
 
   function doScene(){
-    sceneCaret = captureCaret();
-    openModal('写新场景', '描述你想写的情节，我会生成一个完整场景。' + (sceneCaret ? ' 生成后会插到你光标所在的段落后面。' : ''), 'scene');
+    caretAt = captureCaret();
+    openModal('写新场景', '描述你想写的情节，我会生成一个完整场景。' + (caretAt ? ' 生成后会插到你光标所在的段落后面。' : ''), 'scene');
   }
 
   els.btnContinue.addEventListener('click', doContinue);
@@ -991,7 +1009,7 @@ body.reading .read-bar{display:flex;align-items:center;flex-wrap:wrap}
         toast('已插入文末');
         appended = true;
       }
-    } else if(lastResult.mode === 'scene' && sceneCaret && els.editor.contains(sceneCaret.startContainer)){
+    } else if((lastResult.mode === 'scene' || lastResult.mode === 'continue') && caretAt && els.editor.contains(caretAt.startContainer)){
       if(insertAtCaret(textToHtml(lastResult.text))){
         toast('已插入到光标处');
       } else {
@@ -999,7 +1017,7 @@ body.reading .read-bar{display:flex;align-items:center;flex-wrap:wrap}
         toast('已插入文末');
         appended = true;
       }
-      sceneCaret = null;
+      caretAt = null;
     } else {
       el.innerHTML += textToHtml(lastResult.text);
       toast('已插入文末');
