@@ -490,10 +490,10 @@ body.reading .editor{
         frag.appendChild(ins);
         if(after) frag.appendChild(document.createTextNode(after));
         node.parentNode.replaceChild(frag, node);
-        return true;
+        return ins;
       }
     }
-    return false;
+    return null;
   }
 
   // 编辑器
@@ -763,22 +763,27 @@ body.reading .editor{
     if(!lastResult.text) return;
     var el = els.editor;
     var c = currentChapter();
+    var ins = null, appended = false;
     if(lastResult.mode === 'rewrite' && rewriteSource && rewriteSource.text){
-      if(applyRewrite(el, rewriteSource.text, lastResult.text)){
+      ins = applyRewrite(el, rewriteSource.text, lastResult.text);
+      if(ins){
         toast('已替换原文（旧段落已划掉）');
       } else {
         el.innerHTML += textToHtml(lastResult.text);
         toast('已插入文末');
+        appended = true;
       }
     } else {
       el.innerHTML += textToHtml(lastResult.text);
       toast('已插入文末');
+      appended = true;
     }
     if(c) c.content = el.innerHTML;
     save(); renderWorks(); renderTop();
     hideResult();
     el.focus();
-    el.scrollTop = el.scrollHeight;
+    if(ins){ ins.scrollIntoView({ block: 'center' }); }
+    else if(appended){ el.scrollTop = el.scrollHeight; }
   });
 
   // 设置
