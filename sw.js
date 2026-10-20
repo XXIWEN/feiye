@@ -1,4 +1,4 @@
-var CACHE = 'feiye-v2';
+var CACHE = 'feiye-v3';
 var ASSETS = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', function(e){
@@ -18,10 +18,11 @@ self.addEventListener('activate', function(e){
 self.addEventListener('fetch', function(e){
   if(e.request.method !== 'GET') return;
 
-  // 页面导航：网络优先，拿不到再回退缓存 —— 保证每次在线打开都能看到最新版
+  // 页面导航：网络优先，且强制绕过 HTTP 缓存(GitHub Pages 会给 index.html 发 max-age=600，
+  // 不加 no-store 会在部署后 10 分钟内仍拿到旧版，表现为"新功能不生效")
   if(e.request.mode === 'navigate'){
     e.respondWith(
-      fetch(e.request).then(function(res){
+      fetch(e.request, {cache: 'no-store'}).then(function(res){
         if(res && res.status === 200){
           var clone = res.clone();
           caches.open(CACHE).then(function(c){ c.put(e.request, clone); });
