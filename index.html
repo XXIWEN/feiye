@@ -222,6 +222,34 @@ body.reading .editor{
   padding:56px 28px 90px;
   font-size:19px;line-height:2.1;
 }
+/* 翻页方式 */
+body.reading.mode-tap .editor,body.reading.mode-flip .editor{overflow:hidden}
+body.reading.mode-flip .editor.flip-anim{animation:flipPage .45s ease}
+@keyframes flipPage{
+  0%{transform:perspective(1200px) rotateY(0)}
+  45%{transform:perspective(1200px) rotateY(-26deg);opacity:.55}
+  100%{transform:perspective(1200px) rotateY(0)}
+}
+/* 阅读底部工具栏 */
+.read-bar{
+  display:none;position:fixed;left:0;right:0;bottom:0;z-index:79;
+  background:var(--sheet);border-top:1px solid var(--line);
+  padding:8px 14px;padding-bottom:calc(8px + env(safe-area-inset-bottom));
+  gap:6px;
+}
+body.reading .read-bar{display:flex;align-items:center;flex-wrap:wrap}
+.rb{font-size:13px;color:var(--ink2);padding:6px 10px;border-radius:8px}
+.rb:hover{background:var(--line-soft)}
+.rb-sep{flex:1}
+.rb-mode{font-size:12px;color:var(--ink3);padding:5px 11px;border-radius:16px;border:1px solid var(--line);background:transparent}
+.rb-mode.on{color:var(--rose-deep);border-color:var(--rose);background:var(--rose-soft);font-weight:600}
+/* 目录 */
+.toc-list{display:flex;flex-direction:column;gap:6px;margin-bottom:14px;max-height:52vh;overflow-y:auto}
+.toc-item{display:flex;gap:10px;align-items:center;text-align:left;padding:10px 12px;border-radius:10px;font-size:14px;color:var(--ink2)}
+.toc-item:hover{background:var(--line-soft)}
+.toc-item.active{color:var(--rose-deep);background:var(--rose-soft);font-weight:600}
+.toc-item .ti{flex:0 0 22px;height:22px;border-radius:50%;background:var(--rose-soft);color:var(--rose-deep);font-size:12px;display:flex;align-items:center;justify-content:center}
+.toc-item .tt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 @media (max-width:820px){
   .sidebar{
@@ -281,6 +309,16 @@ body.reading .editor{
 
   <button class="read-exit" id="btnReadExit">✕ 退出阅读</button>
 
+  <div class="read-bar" id="readBar">
+    <button class="rb" id="rbPrev">上一章</button>
+    <button class="rb" id="rbToc">目录</button>
+    <button class="rb" id="rbNext">下一章</button>
+    <span class="rb-sep"></span>
+    <button class="rb-mode" data-mode="scroll">滑动</button>
+    <button class="rb-mode" data-mode="tap">点击</button>
+    <button class="rb-mode" data-mode="flip">翻书</button>
+  </div>
+
   <div class="result" id="result">
     <div class="box">
       <div class="out" id="aiOut"></div>
@@ -318,7 +356,7 @@ body.reading .editor{
 
   var state = {
     works: [{ id: uid(), title: '未命名', chapters: [{ id: uid(), title: '第一章', content: '' }] }],
-    settings: { apiKey: '', stylePrompt: DEFAULT_STYLE },
+    settings: { apiKey: '', stylePrompt: DEFAULT_STYLE, readingMode: 'scroll' },
     activeWorkId: null, activeChapterId: null
   };
 
@@ -360,6 +398,7 @@ body.reading .editor{
       if(d && d.settings){
         if(d.settings.apiKey) state.settings.apiKey = d.settings.apiKey;
         if(d.settings.stylePrompt) state.settings.stylePrompt = d.settings.stylePrompt;
+        if(d.settings.readingMode) state.settings.readingMode = d.settings.readingMode;
       }
       if(d && d.activeWorkId && d.activeChapterId){
         state.activeWorkId = d.activeWorkId;
@@ -401,7 +440,7 @@ body.reading .editor{
 
   var els = {};
   ['sidebar','works','menuBtn','mask','topTitle','topMeta','editor','aiBar','aiHint','loading',
-   'btnRead','btnReadExit',
+   'btnRead','btnReadExit','rbPrev','rbToc','rbNext',
    'btnRewrite','btnScene','btnContinue','result','aiOut','aiNote','btnRetry','btnCancel','btnInsert',
    'modalMask','modalTitle','modalDesc','modalBody','toast','btnExport','btnImport','btnSettings']
   .forEach(function(id){ els[id] = document.getElementById(id); });
@@ -622,15 +661,83 @@ body.reading .editor{
 
   // 纯净阅读模式
   var reading = false;
+  var readingMode = 'scroll'; // scroll | tap | flip
+  function applyReadingMode(){
+    document.body.classList.remove('mode-scroll','mode-tap','mode-flip');
+    document.body.classList.add('mode-' + readingMode);
+    var mbs = document.querySelectorAll('.rb-mode');
+    Array.prototype.forEach.call(mbs, function(b){
+      b.classList.toggle('on', b.getAttribute('data-mode') === readingMode);
+    });
+  }
   function toggleReading(){
     reading = !reading;
     document.body.classList.toggle('reading', reading);
+    applyReadingMode();
     els.editor.setAttribute('contenteditable', reading ? 'false' : 'true');
+    els.editor.scrollTop = 0;
     if(reading){ els.editor.blur(); closeSidebar(); hideResult(); }
     else { els.editor.focus(); }
   }
   els.btnRead.addEventListener('click', toggleReading);
   els.btnReadExit.addEventListener('click', toggleReading);
+
+  var modeBtns = document.querySelectorAll('.rb-mode');
+  Array.prototype.forEach.call(modeBtns, function(btn){
+    btn.addEventListener('click', function(){
+      readingMode = btn.getAttribute('data-mode');
+      state.settings.readingMode = readingMode;
+      applyReadingMode();
+      save();
+      els.editor.scrollTop = 0;
+    });
+  });
+
+  function currentChapterIndex(){
+    var w = currentWork();
+    if(!w) return -1;
+    for(var i=0;i<w.chapters.length;i++){ if(w.chapters[i].id === state.activeChapterId) return i; }
+    return 0;
+  }
+  function goChapter(dir){
+    var w = currentWork();
+    var idx = currentChapterIndex();
+    var target = w.chapters[idx + dir];
+    if(!target){ toast(dir === 1 ? '已经是最后一章' : '已经是第一章'); return; }
+    state.activeChapterId = target.id;
+    save(); loadEditor(); render();
+    els.editor.scrollTop = 0;
+  }
+  function openToc(){
+    var w = currentWork();
+    if(!w) return;
+    openModal('目录', '《' + w.title + '》', 'toc');
+  }
+  function pageTurn(dir){
+    var el = els.editor;
+    var step = Math.max(el.clientHeight - 30, 50);
+    if(dir === 1){
+      if(el.scrollTop + el.clientHeight >= el.scrollHeight - 5){ goChapter(1); return; }
+    } else {
+      if(el.scrollTop <= 5){ goChapter(-1); return; }
+    }
+    if(readingMode === 'flip'){
+      el.classList.remove('flip-anim');
+      void el.offsetWidth;
+      el.classList.add('flip-anim');
+    }
+    el.scrollBy({ top: dir === 1 ? step : -step, behavior: 'smooth' });
+  }
+  els.rbPrev.addEventListener('click', function(){ goChapter(-1); });
+  els.rbNext.addEventListener('click', function(){ goChapter(1); });
+  els.rbToc.addEventListener('click', openToc);
+  els.editor.addEventListener('click', function(e){
+    if(!reading || readingMode === 'scroll') return;
+    var rect = els.editor.getBoundingClientRect();
+    var x = e.clientX - rect.left;
+    if(x < rect.width * 0.35){ pageTurn(-1); }
+    else { pageTurn(1); }
+  });
 
   // AI
   function apiKey(){ return state.settings.apiKey.trim(); }
@@ -806,6 +913,15 @@ body.reading .editor{
     } else if(mode === 'rename'){
       html += '<div class="field"><label>名称</label><input id="inpRename" placeholder="输入名称"></div>';
       html += '<div class="row"><button class="btn ghost" id="mCancel">取消</button><button class="btn solid" id="mSave">保存</button></div>';
+    } else if(mode === 'toc'){
+      var tw = currentWork();
+      html += '<div class="toc-list">';
+      (tw ? tw.chapters : []).forEach(function(ch, i){
+        var act = ch.id === state.activeChapterId ? ' active' : '';
+        html += '<button class="toc-item'+act+'" data-toc="'+ch.id+'"><span class="ti">'+(i+1)+'</span><span class="tt">'+esc(ch.title)+'</span></button>';
+      });
+      html += '</div>';
+      html += '<div class="row"><button class="btn ghost" id="mCancel">取消</button></div>';
     }
     els.modalBody.innerHTML = html;
     els.modalMask.classList.add('on');
@@ -853,6 +969,16 @@ body.reading .editor{
         }
         renameTarget = null;
         save(); render(); closeModal(); toast('已重命名');
+      });
+    } else if(mode === 'toc'){
+      var tbtns = els.modalBody.querySelectorAll('.toc-item');
+      Array.prototype.forEach.call(tbtns, function(btn){
+        btn.addEventListener('click', function(){
+          state.activeChapterId = btn.getAttribute('data-toc');
+          save(); loadEditor(); render();
+          els.editor.scrollTop = 0;
+          closeModal();
+        });
       });
     }
     var cancel = document.getElementById('mCancel');
@@ -913,6 +1039,7 @@ body.reading .editor{
     await importSetup();
     migrate();
     save();
+    readingMode = state.settings.readingMode || 'scroll';
     if(!state.activeWorkId || !state.activeChapterId){
       state.activeWorkId = state.works[0].id;
       state.activeChapterId = state.works[0].chapters[0].id;
