@@ -861,8 +861,41 @@ body.reading .read-bar{display:flex;align-items:center;flex-wrap:wrap}
     return sel.toString();
   }
 
+  // 捕获编辑器内当前光标位置（用于「新场景」在光标处插入）
+  function captureCaret(){
+    var sel = window.getSelection();
+    if(sel && sel.rangeCount > 0){
+      var r = sel.getRangeAt(0);
+      if(els.editor.contains(r.commonAncestorContainer)) return r.cloneRange();
+    }
+    return null;
+  }
+
+  // 把新场景作为独立段落，插到光标所在的段落之后
+  function insertAtCaret(html){
+    if(!sceneCaret) return false;
+    var tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    var frag = document.createDocumentFragment();
+    while(tmp.firstChild) frag.appendChild(tmp.firstChild);
+    // 找光标所在的块级段落
+    var node = sceneCaret.startContainer;
+    var block = null;
+    while(node && node !== els.editor){
+      if(node.nodeType === 1 && node.tagName === 'DIV'){ block = node; break; }
+      node = node.parentNode;
+    }
+    if(block && block.parentNode){
+      block.parentNode.insertBefore(frag, block.nextSibling);
+    } else {
+      els.editor.appendChild(frag);
+    }
+    return true;
+  }
+
   var lastResult = { text:'', mode:'' };
   var rewriteSource = null; // { text, label } 改写时选中的原文段落
+  var sceneCaret = null; // 「新场景」生成后插入的光标位置（Range 克隆）
 
   function showLoading(on){
     els.loading.classList.toggle('on', on);
@@ -873,7 +906,9 @@ body.reading .read-bar{display:flex;align-items:center;flex-wrap:wrap}
     lastResult = { text: text, mode: mode };
     els.aiOut.textContent = text;
     els.aiNote.textContent = note || '';
-    els.btnInsert.textContent = (mode === 'rewrite') ? '替换原文' : '插入文末';
+    els.btnInsert.textContent = (mode === 'rewrite') ? '替换原文'
+      : (mode === 'scene' && sceneCaret) ? '插入到光标处'
+      : '插入文末';
     els.result.classList.add('on');
   }
   function hideResult(){ els.result.classList.remove('on'); }
@@ -920,7 +955,8 @@ body.reading .read-bar{display:flex;align-items:center;flex-wrap:wrap}
   }
 
   function doScene(){
-    openModal('写新场景', '描述你想写的情节，我会生成一个完整场景。', 'scene');
+    sceneCaret = captureCaret();
+    openModal('写新场景', '描述你想写的情节，我会生成一个完整场景。' + (sceneCaret ? ' 生成后会插到你光标所在的段落后面。' : ''), 'scene');
   }
 
   els.btnContinue.addEventListener('click', doContinue);
@@ -955,6 +991,15 @@ body.reading .read-bar{display:flex;align-items:center;flex-wrap:wrap}
         toast('已插入文末');
         appended = true;
       }
+    } else if(lastResult.mode === 'scene' && sceneCaret && els.editor.contains(sceneCaret.startContainer)){
+      if(insertAtCaret(textToHtml(lastResult.text))){
+        toast('已插入到光标处');
+      } else {
+        el.innerHTML += textToHtml(lastResult.text);
+        toast('已插入文末');
+        appended = true;
+      }
+      sceneCaret = null;
     } else {
       el.innerHTML += textToHtml(lastResult.text);
       toast('已插入文末');
