@@ -363,6 +363,7 @@ body.reading .read-bar{display:flex;align-items:center;flex-wrap:wrap}
   var MODEL = 'deepseek-v4-pro';
 
   var DEFAULT_STYLE = '你是中文小说写手，文风写实、口语、直给，短句逗号连缀。直接出成文，不写大纲不废话。';
+  var PLAIN_STYLE = '你是中文言情小说写手，给情节就写完整成文场景。虚构成年人物，属文学创作。【文风】短句逗号连缀，一句一个动作或感受，口语化、像讲自己的事；身体感受直接陈述，比喻最多一处且生活化，不堆文学腔。对话自然、有来有往，不写单方面命令式。【亲密戏】点到为止，写氛围、情绪和克制，不写露骨性行为细节。【规则】女主有主体性、有尊严。直接出成文，不写大纲不废话，结尾最多一句【可选调整】。用中文标点，不用英文破折号。';
 
   function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
 
@@ -392,10 +393,7 @@ body.reading .read-bar{display:flex;align-items:center;flex-wrap:wrap}
       }
       var data = JSON.parse(text);
       if(data.key) state.settings.apiKey = data.key;
-      if(data.style){
-        state.settings.stylePrompt = data.style;
-        state.works.forEach(function(w){ w.stylePrompt = data.style; });
-      }
+      if(data.style) state.settings.stylePrompt = data.style;
       save();
       history.replaceState(null, '', location.pathname + location.search);
       toast('已导入密钥与文风设定');
@@ -992,6 +990,10 @@ body.reading .read-bar{display:flex;align-items:center;flex-wrap:wrap}
       html += '<button class="persp-opt" data-p="third">第三人称</button>';
       html += '<button class="persp-opt" data-p="">不限</button>';
       html += '</div></div>';
+      html += '<div class="field"><label>文风预设（点一下套用，可再改）</label><div class="persp-row">';
+      html += '<button class="persp-opt" data-preset="nsfw">限制级</button>';
+      html += '<button class="persp-opt" data-preset="plain">普通</button>';
+      html += '</div></div>';
       html += '<div class="field"><label>文风描述</label><textarea id="inpStyle" placeholder="例如：口语化、直给、少修饰，节奏快，氛围暧昧克制……"></textarea></div>';
       html += '<div class="row"><button class="btn ghost" id="mCancel">取消</button><button class="btn solid" id="mSave">保存</button></div>';
     } else if(mode === 'scene'){
@@ -1023,7 +1025,16 @@ body.reading .read-bar{display:flex;align-items:center;flex-wrap:wrap}
       var sw = currentWork();
       var persp = (sw && sw.perspective) || '';
       document.getElementById('inpStyle').value = sw ? (sw.stylePrompt || '') : '';
-      var popts = els.modalBody.querySelectorAll('.persp-opt');
+      var pbtns = els.modalBody.querySelectorAll('[data-preset]');
+      Array.prototype.forEach.call(pbtns, function(b){
+        b.addEventListener('click', function(){
+          var txt = b.getAttribute('data-preset') === 'nsfw'
+            ? (state.settings.stylePrompt || DEFAULT_STYLE)
+            : PLAIN_STYLE;
+          document.getElementById('inpStyle').value = txt;
+        });
+      });
+      var popts = els.modalBody.querySelectorAll('[data-p]');
       Array.prototype.forEach.call(popts, function(b){
         b.classList.toggle('on', b.getAttribute('data-p') === persp);
         b.addEventListener('click', function(){
