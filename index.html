@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#FBF4F1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="绯页">
+<title>绯页 · 稿纸</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root{
+  --paper:#FBF4F1;
+  --sheet:#FFFDFC;
+  --ink:#2A1F1C;
+  --ink2:#6E5A56;
+  --ink3:#A08E8A;
+  --rose:#C97B84;
+  --rose-deep:#B56772;
+  --rose-soft:#F3E1E3;
+  --line:#EFDAD5;
+  --line-soft:#F6E9E6;
+  --ui:-apple-system,"PingFang SC","Helvetica Neue",system-ui,sans-serif;
+  --wen:"Songti SC","STSong","SimSun","Noto Serif CJK SC",serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  font-family:var(--ui);
+  background:var(--paper);
+  color:var(--ink);
+  font-size:15px;
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+  overflow:hidden;
+}
+button{font-family:var(--ui);cursor:pointer;border:none;background:none;color:inherit}
+input,textarea{font-family:var(--ui);color:inherit}
+
+/* 布局 */
+.app{display:flex;height:100vh;height:100dvh}
+
+/* 侧栏 */
+.sidebar{
+  width:272px;flex:0 0 272px;
+  background:var(--sheet);
+  border-right:1px solid var(--line);
+  display:flex;flex-direction:column;
+  padding:18px 12px 12px;
+  overflow:hidden;
+}
+.brand{padding:2px 10px 14px;display:flex;align-items:baseline;gap:8px}
+.brand .name{font-size:21px;font-weight:600;letter-spacing:.02em}
+.brand .sub{font-size:12px;color:var(--ink3)}
+.works{flex:1;overflow-y:auto;padding:0 2px}
+.works::-webkit-scrollbar{width:8px}
+.works::-webkit-scrollbar-thumb{background:var(--line);border-radius:4px}
+
+.work-item{margin-bottom:14px}
+.work-head{
+  display:flex;align-items:center;gap:6px;
+  padding:7px 8px;border-radius:8px;cursor:pointer;
+  color:var(--ink);font-weight:600;font-size:14px;
+}
+.work-head:hover{background:var(--line-soft)}
+.work-head.active{background:var(--rose-soft);color:var(--rose-deep)}
+.work-head .dot{width:6px;height:6px;border-radius:50%;background:var(--rose);flex:0 0 6px}
+.work-head .t{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.work-head .act{opacity:0;color:var(--ink3);font-size:12px;padding:2px 4px;border-radius:5px}
+.work-head:hover .act{opacity:1}
+.work-head .act:hover{background:var(--rose-soft);color:var(--rose-deep)}
+
+.chap-list{padding-left:12px}
+.chap-item{
+  display:flex;align-items:center;gap:6px;
+  padding:6px 8px;border-radius:8px;cursor:pointer;
+  color:var(--ink2);font-size:13.5px;
+}
+.chap-item:hover{background:var(--line-soft)}
+.chap-item.active{color:var(--rose-deep);font-weight:600}
+.chap-item .t{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chap-item .wc{font-size:11px;color:var(--ink3)}
+.chap-item .del{opacity:0;color:var(--ink3);font-size:12px;padding:0 4px}
+.chap-item:hover .del{opacity:1}
+.chap-item .del:hover{color:var(--rose-deep)}
+
+.add-row{padding:4px 8px 2px 12px}
+.add-btn{
+  display:block;width:100%;text-align:left;
+  color:var(--ink3);font-size:13px;padding:5px 8px;border-radius:8px;
+}
+.add-btn:hover{background:var(--line-soft);color:var(--rose-deep)}
+
+.side-foot{
+  border-top:1px solid var(--line-soft);
+  padding:10px 4px 0;display:flex;flex-direction:column;gap:2px;
+}
+.foot-btn{text-align:left;color:var(--ink2);font-size:13px;padding:7px 10px;border-radius:8px}
+.foot-btn:hover{background:var(--line-soft)}
+
+/* 主区 */
+.main{flex:1;display:flex;flex-direction:column;min-width:0;background:var(--paper)}
+.topbar{
+  display:flex;align-items:center;gap:10px;
+  padding:12px 22px;border-bottom:1px solid var(--line-soft);
+}
+.menu-btn{display:none;font-size:20px;color:var(--ink2);padding:2px 6px}
+.topbar .title{font-size:15px;font-weight:600;color:var(--ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.topbar .meta{margin-left:auto;font-size:12px;color:var(--ink3);white-space:nowrap}
+
+.editor-wrap{flex:1;display:flex;flex-direction:column;min-height:0;position:relative}
+.editor{
+  flex:1;width:100%;resize:none;border:none;outline:none;
+  background:transparent;
+  font-family:var(--wen);font-size:17.5px;line-height:2;
+  color:var(--ink);
+  padding:28px 30px 140px;
+  caret-color:var(--rose);
+}
+.editor::placeholder{color:var(--ink3)}
+
+/* AI 工具栏 */
+.ai-bar{
+  position:fixed;left:272px;right:0;bottom:0;
+  display:flex;align-items:center;gap:10px;
+  padding:12px 22px;
+  background:linear-gradient(transparent, var(--paper) 40%);
+}
+.ai-bar .hint{font-size:12px;color:var(--ink3);margin-right:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ai-btn{
+  padding:9px 16px;border-radius:20px;font-size:14px;
+  background:var(--rose-soft);color:var(--rose-deep);font-weight:600;
+  transition:background .15s,color .15s;
+}
+.ai-btn:hover{background:var(--rose);color:#fff}
+.ai-btn.primary{background:var(--rose);color:#fff}
+.ai-btn.primary:hover{background:var(--rose-deep)}
+.ai-btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* 抽屉遮罩 */
+.mask{position:fixed;inset:0;background:rgba(42,31,28,.25);opacity:0;pointer-events:none;transition:opacity .2s;z-index:30}
+.mask.on{opacity:1;pointer-events:auto}
+
+/* 弹窗 */
+.modal-mask{position:fixed;inset:0;background:rgba(42,31,28,.3);display:none;align-items:flex-end;justify-content:center;z-index:50}
+.modal-mask.on{display:flex}
+.sheet{
+  width:100%;max-width:560px;background:var(--sheet);
+  border-radius:20px 20px 0 0;padding:22px 22px 30px;
+  max-height:86vh;overflow-y:auto;
+}
+.sheet h3{font-size:17px;font-weight:600;margin-bottom:4px}
+.sheet .desc{font-size:13px;color:var(--ink3);margin-bottom:16px}
+.field{margin-bottom:16px}
+.field label{display:block;font-size:13px;color:var(--ink2);margin-bottom:6px}
+.field input,.field textarea{
+  width:100%;border:1px solid var(--line);border-radius:10px;
+  padding:10px 12px;font-size:14px;background:#fff;outline:none;
+}
+.field input:focus,.field textarea:focus{border-color:var(--rose)}
+.field textarea{resize:vertical;min-height:90px;line-height:1.7}
+.row{display:flex;gap:10px;justify-content:flex-end;margin-top:6px}
+.btn{
+  padding:9px 18px;border-radius:20px;font-size:14px;font-weight:600;
+}
+.btn.ghost{color:var(--ink2)}
+.btn.ghost:hover{background:var(--line-soft)}
+.btn.solid{background:var(--rose);color:#fff}
+.btn.solid:hover{background:var(--rose-deep)}
+
+/* AI 结果条 */
+.result{
+  position:fixed;left:272px;right:0;bottom:64px;
+  display:none;flex-direction:column;gap:10px;z-index:20;
+  padding:0 22px;
+}
+.result.on{display:flex}
+.result .box{
+  background:var(--sheet);border:1px solid var(--line);border-radius:14px;
+  padding:14px 16px;box-shadow:0 6px 24px rgba(42,31,28,.08);
+}
+.result .out{
+  font-family:var(--wen);font-size:15px;line-height:1.9;color:var(--ink);
+  max-height:40vh;overflow-y:auto;white-space:pre-wrap;word-break:break-word;
+}
+.result .rrow{display:flex;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap}
+.result .rrow .note{font-size:12px;color:var(--ink3);margin-right:auto}
+
+/* 生成中 */
+.loading{display:none;align-items:center;gap:8px;color:var(--rose-deep);font-size:13px;padding:6px 2px}
+.loading.on{display:flex}
+.spinner{width:14px;height:14px;border-radius:50%;border:2px solid var(--rose-soft);border-top-color:var(--rose);animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* 提示 */
+.toast{
+  position:fixed;bottom:88px;left:50%;transform:translateX(-50%);
+  background:var(--ink);color:#fff;font-size:13px;
+  padding:8px 16px;border-radius:20px;opacity:0;pointer-events:none;
+  transition:opacity .2s;z-index:60;
+}
+.toast.on{opacity:.92}
+
+@media (max-width:820px){
+  .sidebar{
+    position:fixed;left:0;top:0;bottom:0;z-index:40;
+    transform:translateX(-100%);transition:transform .25s ease;
+    width:280px;box-shadow:0 0 40px rgba(42,31,28,.12);
+  }
+  .sidebar.on{transform:translateX(0)}
+  .menu-btn{display:block}
+  .ai-bar{left:0;padding:12px 14px;padding-bottom:calc(12px + env(safe-area-inset-bottom))}
+  .ai-bar .hint{display:none}
+  .result{left:0;padding:0 14px;bottom:60px}
+  .editor{padding:20px 18px 150px;font-size:16.5px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <span class="name">绯页</span>
+      <span class="sub">写给自己看的故事</span>
+    </div>
+    <div class="works" id="works"></div>
+    <div class="side-foot">
+      <button class="foot-btn" id="btnExport">导出备份</button>
+      <button class="foot-btn" id="btnImport">导入备份</button>
+      <button class="foot-btn" id="btnSettings">文风与密钥设置</button>
+    </div>
+  </aside>
+
+  <div class="mask" id="mask"></div>
+
+  <main class="main">
+    <div class="topbar">
+      <button class="menu-btn" id="menuBtn">☰</button>
+      <span class="title" id="topTitle">绯页</span>
+      <span class="meta" id="topMeta"></span>
+    </div>
+    <div class="editor-wrap">
+      <textarea class="editor" id="editor" placeholder="从第一句开始写吧……"></textarea>
+    </div>
+  </main>
+
+  <div class="ai-bar" id="aiBar">
+    <span class="hint" id="aiHint">选中文字后可「改写」</span>
+    <span class="loading" id="loading"><span class="spinner"></span>正在写……</span>
+    <button class="ai-btn" id="btnRewrite">改写</button>
+    <button class="ai-btn" id="btnScene">新场景</button>
+    <button class="ai-btn primary" id="btnContinue">继续写</button>
+  </div>
+
+  <div class="result" id="result">
+    <div class="box">
+      <div class="out" id="aiOut"></div>
+      <div class="rrow">
+        <span class="note" id="aiNote"></span>
+        <button class="btn ghost" id="btnRetry">重试</button>
+        <button class="btn solid" id="btnInsert">插入文末</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="modal-mask" id="modalMask">
+  <div class="sheet">
+    <h3 id="modalTitle">设置</h3>
+    <div class="desc" id="modalDesc"></div>
+    <div id="modalBody"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  'use strict';
+  var LS_KEY = 'feiye_novel_v1';
+  var API_URL = 'https://api.deepseek.com/v1/chat/completions';
+  var MODEL = 'deepseek-v4-pro';
+
+  var DEFAULT_STYLE = '你是中文小说写手，文风写实、口语、直给，短句逗号连缀，第一人称。直接出成文，不写大纲不废话。';
+
+  function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+
+  var state = {
+    works: [{ id: uid(), title: '未命名', chapters: [{ id: uid(), title: '第一章', content: '' }] }],
+    settings: { apiKey: '', stylePrompt: DEFAULT_STYLE },
+    activeWorkId: null, activeChapterId: null
+  };
+
+  function importSetup(){
+    var m = location.hash.match(/^#setup=(.+)$/);
+    if(!m) return;
+    try{
+      var s = m[1].replace(/-/g,'+').replace(/_/g,'/');
+      while(s.length % 4) s += '=';
+      var bin = atob(s);
+      var bytes = new Uint8Array(bin.length);
+      for(var i=0;i<bin.length;i++) bytes[i] = bin.charCodeAt(i);
+      var data = JSON.parse(new TextDecoder('utf-8').decode(bytes));
+      if(data.key) state.settings.apiKey = data.key;
+      if(data.style) state.settings.stylePrompt = data.style;
+      save();
+      history.replaceState(null, '', location.pathname + location.search);
+      toast('已导入密钥与文风设定');
+    }catch(e){}
+  }
+
+  function load(){
+    try{
+      var raw = localStorage.getItem(LS_KEY);
+      if(!raw) return;
+      var d = JSON.parse(raw);
+      if(d && d.works && d.works.length){
+        state.works = d.works;
+      }
+      if(d && d.settings){
+        if(d.settings.apiKey) state.settings.apiKey = d.settings.apiKey;
+        if(d.settings.stylePrompt) state.settings.stylePrompt = d.settings.stylePrompt;
+      }
+      if(d && d.activeWorkId && d.activeChapterId){
+        state.activeWorkId = d.activeWorkId;
+        state.activeChapterId = d.activeChapterId;
+      }
+    }catch(e){}
+  }
+
+  function save(){
+    try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(e){}
+  }
+
+  function currentWork(){
+    return state.works.find(function(w){ return w.id === state.activeWorkId; }) || state.works[0];
+  }
+  function currentChapter(){
+    var w = currentWork();
+    if(!w) return null;
+    return w.chapters.find(function(c){ return c.id === state.activeChapterId; }) || w.chapters[0];
+  }
+
+  var els = {};
+  ['sidebar','works','menuBtn','mask','topTitle','topMeta','editor','aiBar','aiHint','loading',
+   'btnRewrite','btnScene','btnContinue','result','aiOut','aiNote','btnRetry','btnInsert',
+   'modalMask','modalTitle','modalDesc','modalBody','toast','btnExport','btnImport','btnSettings']
+  .forEach(function(id){ els[id] = document.getElementById(id); });
+
+  function toast(msg){
+    els.toast.textContent = msg;
+    els.toast.classList.add('on');
+    clearTimeout(toast._t);
+    toast._t = setTimeout(function(){ els.toast.classList.remove('on'); }, 1600);
+  }
+
+  function render(){
+    renderWorks();
+    renderTop();
+  }
+
+  function renderWorks(){
+    var html = '';
+    state.works.forEach(function(w){
+      var isW = w.id === currentWork().id;
+      html += '<div class="work-item">';
+      html += '  <div class="work-head' + (isW?' active':'') + '" data-w="'+w.id+'">';
+      html += '    <span class="dot"></span><span class="t">'+esc(w.title)+'</span>';
+      html += '    <span class="act" data-wdel="'+w.id+'">删除</span>';
+      html += '  </div>';
+      html += '  <div class="chap-list">';
+      w.chapters.forEach(function(c){
+        var isC = isW && c.id === currentChapter().id;
+        html += '    <div class="chap-item' + (isC?' active':'') + '" data-w="'+w.id+'" data-c="'+c.id+'">';
+        html += '      <span class="t">'+esc(c.title)+'</span>';
+        html += '      <span class="wc">'+c.content.length+'</span>';
+        html += '      <span class="del" data-cdel="'+c.id+'">删</span>';
+        html += '    </div>';
+      });
+      html += '    <div class="add-row"><button class="add-btn" data-addchap="'+w.id+'">＋ 新章节</button></div>';
+      html += '  </div>';
+      html += '</div>';
+    });
+    html += '<div class="add-row"><button class="add-btn" id="btnNewWork">＋ 新作品</button></div>';
+    els.works.innerHTML = html;
+  }
+
+  function renderTop(){
+    var w = currentWork(), c = currentChapter();
+    els.topTitle.textContent = w ? (w.title + ' · ' + c.title) : '绯页';
+    els.topMeta.textContent = c ? (c.content.length + ' 字') : '';
+  }
+
+  function esc(s){
+    return String(s).replace(/[&<>"']/g, function(ch){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];
+    });
+  }
+
+  // 编辑器
+  var saveTimer = null;
+  els.editor.addEventListener('input', function(){
+    var c = currentChapter();
+    if(!c) return;
+    c.content = els.editor.value;
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(function(){ save(); renderWorks(); renderTop(); }, 350);
+  });
+
+  els.editor.addEventListener('blur', function(){ save(); });
+
+  function loadEditor(){
+    var c = currentChapter();
+    els.editor.value = c ? c.content : '';
+  }
+
+  // 侧栏交互（事件委托）
+  els.works.addEventListener('click', function(e){
+    var t = e.target;
+    var w = t.getAttribute && t.getAttribute('data-w');
+    var c = t.getAttribute && t.getAttribute('data-c');
+    var wdel = t.getAttribute && t.getAttribute('data-wdel');
+    var cdel = t.getAttribute && t.getAttribute('data-cdel');
+    var addchap = t.getAttribute && t.getAttribute('data-addchap');
+
+    if(wdel){
+      if(confirm('删除这部作品及其所有章节？')) delWork(wdel);
+      return;
+    }
+    if(cdel){
+      if(confirm('删除这一章？')) delChapter(cdel);
+      return;
+    }
+    if(addchap){
+      addChapter(addchap); return;
+    }
+    if(c && w){
+      state.activeWorkId = w; state.activeChapterId = c;
+      save(); loadEditor(); render(); closeSidebar();
+      return;
+    }
+    if(w){
+      state.activeWorkId = w;
+      state.activeChapterId = currentWork().chapters[0].id;
+      save(); loadEditor(); render();
+    }
+  });
+
+  function delWork(id){
+    state.works = state.works.filter(function(w){ return w.id !== id; });
+    if(!state.works.length){
+      state.works = [{ id: uid(), title: '未命名', chapters: [{ id: uid(), title: '第一章', content: '' }] }];
+    }
+    state.activeWorkId = state.works[0].id;
+    state.activeChapterId = state.works[0].chapters[0].id;
+    save(); loadEditor(); render();
+  }
+  function delChapter(id){
+    var w = currentWork();
+    w.chapters = w.chapters.filter(function(c){ return c.id !== id; });
+    if(!w.chapters.length){ w.chapters = [{ id: uid(), title: '第一章', content: '' }]; }
+    state.activeChapterId = w.chapters[0].id;
+    save(); loadEditor(); render();
+  }
+  function addChapter(workId){
+    var w = state.works.find(function(x){ return x.id === workId; });
+    if(!w) return;
+    var c = { id: uid(), title: '第' + cn(w.chapters.length+1) + '章', content: '' };
+    w.chapters.push(c);
+    state.activeWorkId = workId; state.activeChapterId = c.id;
+    save(); loadEditor(); render(); closeSidebar();
+  }
+
+  function cn(n){
+    var map = ['零','一','二','三','四','五','六','七','八','九','十'];
+    if(n <= 10) return map[n];
+    return String(n);
+  }
+
+  els.btnNewWork = document.getElementById('btnNewWork');
+  // btnNewWork 在 render 后重建，改用一个全局监听
+  document.addEventListener('click', function(e){
+    if(e.target && e.target.id === 'btnNewWork'){
+      var w = { id: uid(), title: '未命名', chapters: [{ id: uid(), title: '第一章', content: '' }] };
+      state.works.push(w);
+      state.activeWorkId = w.id; state.activeChapterId = w.chapters[0].id;
+      save(); loadEditor(); render();
+    }
+  });
+
+  // 抽屉
+  function openSidebar(){ els.sidebar.classList.add('on'); els.mask.classList.add('on'); }
+  function closeSidebar(){ els.sidebar.classList.remove('on'); els.mask.classList.remove('on'); }
+  els.menuBtn.addEventListener('click', openSidebar);
+  els.mask.addEventListener('click', closeSidebar);
+
+  // AI
+  function apiKey(){ return state.settings.apiKey.trim(); }
+
+  function buildMessages(systemText, userText){
+    return [
+      { role: 'system', content: systemText },
+      { role: 'user', content: userText }
+    ];
+  }
+
+  async function callAI(messages){
+    var key = apiKey();
+    if(!key){
+      toast('请先在「设置」里填入 DeepSeek 密钥');
+      openSettings();
+      throw new Error('no key');
+    }
+    var res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+      body: JSON.stringify({ model: MODEL, messages: messages, temperature: 0.9 })
+    });
+    if(!res.ok){
+      var txt = '';
+      try{ txt = (await res.json()).error && (await res.json()).error.message; }catch(e){}
+      throw new Error('请求失败 ' + res.status + (txt?(' · '+txt):''));
+    }
+    var data = await res.json();
+    var out = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+    return (out || '').trim();
+  }
+
+  function lastText(n){
+    var c = currentChapter();
+    if(!c) return '';
+    var s = c.content.replace(/\s+$/,'');
+    return s.length > n ? s.slice(-n) : s;
+  }
+
+  function selectedText(){
+    var el = els.editor;
+    var s = el.value.substring(el.selectionStart, el.selectionEnd);
+    return s;
+  }
+
+  var lastResult = { text:'', mode:'' };
+
+  function showLoading(on){
+    els.loading.classList.toggle('on', on);
+    ['btnContinue','btnRewrite','btnScene'].forEach(function(id){ els[id].disabled = on; });
+  }
+
+  function showResult(text, mode, note){
+    lastResult = { text: text, mode: mode };
+    els.aiOut.textContent = text;
+    els.aiNote.textContent = note || '';
+    els.result.classList.add('on');
+  }
+  function hideResult(){ els.result.classList.remove('on'); }
+
+  async function doContinue(){
+    var c = currentChapter();
+    if(!c) return;
+    var ctx = lastText(1600);
+    var prompt = ctx
+      ? '以下是当前文稿的最后部分，请接着往下写，保持第一人称与文风，直接出正文不要说明：\n\n' + ctx
+      : '请开篇写一段，第一人称，女主苏芊芊怀孕中，直接出正文：';
+    showLoading(true); hideResult();
+    try{
+      var out = await callAI(buildMessages(state.settings.stylePrompt, prompt));
+      showResult(out, 'continue', '');
+    }catch(e){
+      toast(e.message || '生成失败');
+    }finally{
+      showLoading(false);
+    }
+  }
+
+  async function doRewrite(){
+    var sel = selectedText();
+    if(!sel){
+      var c = currentChapter();
+      if(c && c.content){
+        sel = c.content.slice(-600);
+      } else {
+        toast('先写点内容，或选中要改写的段落');
+        return;
+      }
+    }
+    var prompt = '请把下面这段改写成更直给、更口语、身体细节更写实的版本，保持第一人称和文风，直接出改写后的正文：\n\n' + sel;
+    showLoading(true); hideResult();
+    try{
+      var out = await callAI(buildMessages(state.settings.stylePrompt, prompt));
+      showResult(out, 'rewrite', '改写自 ' + (selectedText()? '选中段落' : '文末段落'));
+    }catch(e){
+      toast(e.message || '生成失败');
+    }finally{
+      showLoading(false);
+    }
+  }
+
+  function doScene(){
+    openModal('写新场景', '描述你想写的情节，我会生成一个完整场景。', 'scene');
+  }
+
+  els.btnContinue.addEventListener('click', doContinue);
+  els.btnRewrite.addEventListener('click', doRewrite);
+  els.btnScene.addEventListener('click', doScene);
+
+  els.btnRetry.addEventListener('click', function(){
+    if(lastResult.mode === 'rewrite'){ doRewrite(); }
+    else { doContinue(); }
+  });
+
+  els.btnInsert.addEventListener('click', function(){
+    if(!lastResult.text) return;
+    var el = els.editor;
+    el.value = el.value + (el.value && !/\s$/.test(el.value) ? '\n\n' : '') + lastResult.text + '\n';
+    var c = currentChapter();
+    if(c) c.content = el.value;
+    save(); renderWorks(); renderTop();
+    hideResult();
+    el.focus();
+    el.scrollTop = el.scrollHeight;
+    toast('已插入文末');
+  });
+
+  // 设置
+  function openSettings(){
+    openModal('设置', '文风设定会作为 AI 的系统提示；密钥只存在你本机浏览器，不上传。', 'settings');
+  }
+  els.btnSettings.addEventListener('click', openSettings);
+
+  function openModal(title, desc, mode){
+    els.modalTitle.textContent = title;
+    els.modalDesc.textContent = desc;
+    var html = '';
+    if(mode === 'settings'){
+      html += '<div class="field"><label>DeepSeek 密钥（DEEPSEEK_API_KEY）</label><input type="password" id="inpKey" placeholder="sk-..."></div>';
+      html += '<div class="field"><label>文风设定（系统提示词）</label><textarea id="inpStyle"></textarea></div>';
+      html += '<div class="row"><button class="btn ghost" id="mCancel">取消</button><button class="btn solid" id="mSave">保存</button></div>';
+    } else if(mode === 'scene'){
+      html += '<div class="field"><label>情节描述</label><textarea id="inpScene" placeholder="例如：女主深夜回家，发现男主一直在门口等她……"></textarea></div>';
+      html += '<div class="row"><button class="btn ghost" id="mCancel">取消</button><button class="btn solid" id="mGo">生成</button></div>';
+    }
+    els.modalBody.innerHTML = html;
+    els.modalMask.classList.add('on');
+
+    if(mode === 'settings'){
+      document.getElementById('inpKey').value = state.settings.apiKey;
+      document.getElementById('inpStyle').value = state.settings.stylePrompt;
+      document.getElementById('mSave').addEventListener('click', function(){
+        state.settings.apiKey = document.getElementById('inpKey').value.trim();
+        state.settings.stylePrompt = document.getElementById('inpStyle').value;
+        save(); closeModal(); toast('已保存');
+      });
+    } else if(mode === 'scene'){
+      document.getElementById('mGo').addEventListener('click', async function(){
+        var plot = document.getElementById('inpScene').value.trim();
+        if(!plot){ toast('写点情节描述'); return; }
+        closeModal();
+        showLoading(true); hideResult();
+        try{
+          var out = await callAI(buildMessages(state.settings.stylePrompt, '请按下面情节写一个完整成文场景，第一人称，直接出正文：\n\n' + plot));
+          showResult(out, 'scene', '');
+        }catch(e){
+          toast(e.message || '生成失败');
+        }finally{
+          showLoading(false);
+        }
+      });
+    }
+    var cancel = document.getElementById('mCancel');
+    if(cancel) cancel.addEventListener('click', closeModal);
+  }
+
+  function closeModal(){ els.modalMask.classList.remove('on'); }
+  els.modalMask.addEventListener('click', function(e){
+    if(e.target === els.modalMask) closeModal();
+  });
+
+  // 导出 / 导入
+  els.btnExport.addEventListener('click', function(){
+    var blob = new Blob([JSON.stringify({ works: state.works, stylePrompt: state.settings.stylePrompt }, null, 2)], { type: 'application/json' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = '绯页备份-' + new Date().toISOString().slice(0,10) + '.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+
+  els.btnImport.addEventListener('click', function(){
+    var input = document.createElement('input');
+    input.type = 'file'; input.accept = '.json,application/json';
+    input.onchange = function(){
+      var f = input.files[0];
+      if(!f) return;
+      var reader = new FileReader();
+      reader.onload = function(){
+        try{
+          var d = JSON.parse(reader.result);
+          if(d && d.works && d.works.length){
+            state.works = d.works;
+            if(d.stylePrompt) state.settings.stylePrompt = d.stylePrompt;
+            state.activeWorkId = state.works[0].id;
+            state.activeChapterId = state.works[0].chapters[0].id;
+            save(); loadEditor(); render(); toast('导入成功');
+          } else {
+            toast('文件格式不对');
+          }
+        }catch(e){ toast('导入失败'); }
+      };
+      reader.readAsText(f);
+    };
+    input.click();
+  });
+
+  // 注册 service worker
+  if('serviceWorker' in navigator){
+    window.addEventListener('load', function(){
+      navigator.serviceWorker.register('sw.js').catch(function(){});
+    });
+  }
+
+  // 初始化
+  load();
+  importSetup();
+  if(!state.activeWorkId || !state.activeChapterId){
+    state.activeWorkId = state.works[0].id;
+    state.activeChapterId = state.works[0].chapters[0].id;
+  }
+  // 校验激活 id 仍存在
+  var w = currentWork();
+  if(!w){ state.works = [{ id: uid(), title:'未命名', chapters:[{ id:uid(), title:'第一章', content:'' }] }]; state.activeWorkId = state.works[0].id; state.activeChapterId = state.works[0].chapters[0].id; }
+  else if(!currentChapter()){ state.activeChapterId = w.chapters[0].id; }
+  loadEditor();
+  render();
+})();
+</script>
+</body>
+</html>
