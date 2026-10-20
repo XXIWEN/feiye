@@ -232,12 +232,9 @@ body.reading.mode-tap .editor,body.reading.mode-flip .editor{
 body.reading.mode-tap .editor>div,body.reading.mode-flip .editor>div{
   padding-left:44px;padding-right:44px;
 }
-body.reading.mode-flip .editor.flip-anim{animation:flipPage .45s ease}
-@keyframes flipPage{
-  0%{transform:perspective(1200px) rotateY(0)}
-  45%{transform:perspective(1200px) rotateY(-26deg);opacity:.55}
-  100%{transform:perspective(1200px) rotateY(0)}
-}
+body.reading.mode-flip .editor{transition:transform .4s cubic-bezier(.4,0,.2,1)}
+body.reading.mode-flip .editor.flip-next{transform:perspective(1800px) rotateY(-85deg);transform-origin:left center}
+body.reading.mode-flip .editor.flip-prev{transform:perspective(1800px) rotateY(85deg);transform-origin:right center}
 /* 阅读模式：隐藏划掉的旧文，改写后的新文显示为正常正文 */
 body.reading .editor del{display:none}
 body.reading .editor ins{color:inherit;background:none;text-decoration:none;padding:0}
@@ -683,15 +680,57 @@ body.reading .read-bar{display:flex;align-items:center;flex-wrap:wrap}
   }
   function toggleReading(){
     reading = !reading;
+    if(!reading){ saveReadPos(); }  // 退出前先保存（此时仍在阅读布局中）
     document.body.classList.toggle('reading', reading);
-    applyReadingMode();
-    els.editor.setAttribute('contenteditable', reading ? 'false' : 'true');
-    els.editor.scrollTop = 0; els.editor.scrollLeft = 0;
-    if(reading){ els.editor.blur(); closeSidebar(); hideResult(); }
-    else { els.editor.focus(); }
+    if(reading){
+      var p = state.settings.readPos;
+      if(p && p.readingMode) readingMode = p.readingMode;
+      applyReadingMode();
+      els.editor.setAttribute('contenteditable', 'false');
+      restoreReadPos();
+      els.editor.blur(); closeSidebar(); hideResult();
+    } else {
+      els.editor.setAttribute('contenteditable', 'true');
+      els.editor.focus();
+    }
   }
   els.btnRead.addEventListener('click', toggleReading);
   els.btnReadExit.addEventListener('click', toggleReading);
+
+  function saveReadPos(){
+    state.settings.readPos = {
+      workId: state.activeWorkId,
+      chapterId: state.activeChapterId,
+      scrollTop: els.editor.scrollTop,
+      scrollLeft: els.editor.scrollLeft,
+      readingMode: readingMode
+    };
+    save();
+  }
+  function restoreReadPos(){
+    var p = state.settings.readPos;
+    if(!p){ els.editor.scrollTop = 0; els.editor.scrollLeft = 0; return; }
+    if(p.workId && state.works.some(function(w){ return w.id === p.workId; })){
+      state.activeWorkId = p.workId;
+    }
+    var w = currentWork();
+    if(p.chapterId && w.chapters.some(function(c){ return c.id === p.chapterId; })){
+      state.activeChapterId = p.chapterId;
+    } else {
+      state.activeChapterId = w.chapters[0].id;
+    }
+    save(); loadEditor(); render();
+    requestAnimationFrame(function(){
+      els.editor.scrollTop = p.scrollTop || 0;
+      els.editor.scrollLeft = p.scrollLeft || 0;
+    });
+  }
+  var readPosTimer = null;
+  els.editor.addEventListener('scroll', function(){
+    if(!reading) return;
+    clearTimeout(readPosTimer);
+    readPosTimer = setTimeout(saveReadPos, 400);
+  });
 
   var modeBtns = document.querySelectorAll('.rb-mode');
   Array.prototype.forEach.call(modeBtns, function(btn){
@@ -724,6 +763,15 @@ body.reading .read-bar{display:flex;align-items:center;flex-wrap:wrap}
     if(!w) return;
     openModal('目录', '《' + w.title + '》', 'toc');
   }
+  function flipTurn(dir){
+    var el = els.editor;
+    var cls = dir === 1 ? 'flip-next' : 'flip-prev';
+    el.classList.add(cls);
+    setTimeout(function(){
+      el.scrollBy({ left: dir * el.clientWidth });
+      el.classList.remove(cls);
+    }, 410);
+  }
   function pageTurn(dir){
     var el = els.editor;
     if(dir === 1){
@@ -732,12 +780,10 @@ body.reading .read-bar{display:flex;align-items:center;flex-wrap:wrap}
       if(el.scrollLeft <= 5){ goChapter(-1); return; }
     }
     if(readingMode === 'flip'){
-      el.classList.remove('flip-anim');
-      void el.offsetWidth;
-      el.classList.add('flip-anim');
+      flipTurn(dir);
+    } else {
+      el.scrollBy({ left: dir === 1 ? el.clientWidth : -el.clientWidth, behavior: 'smooth' });
     }
-    var step = el.clientWidth;
-    el.scrollBy({ left: dir === 1 ? step : -step, behavior: 'smooth' });
   }
   els.rbPrev.addEventListener('click', function(){ goChapter(-1); });
   els.rbNext.addEventListener('click', function(){ goChapter(1); });
