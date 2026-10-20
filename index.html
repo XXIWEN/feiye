@@ -170,6 +170,15 @@ input,textarea{font-family:var(--ui);color:inherit}
 .btn.ghost:hover{background:var(--line-soft)}
 .btn.solid{background:var(--rose);color:#fff}
 .btn.solid:hover{background:var(--rose-deep)}
+.para-list{display:flex;flex-direction:column;gap:8px;margin-bottom:16px}
+.para-item{
+  display:flex;align-items:flex-start;gap:10px;text-align:left;
+  padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;
+  font-size:14px;line-height:1.5;color:var(--ink2);
+}
+.para-item:hover{border-color:var(--rose);background:var(--line-soft)}
+.para-item .pi{flex:0 0 20px;height:20px;border-radius:50%;background:var(--rose-soft);color:var(--rose-deep);font-size:12px;display:flex;align-items:center;justify-content:center;font-weight:600}
+.para-item .pt{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* AI 结果条 */
 .result{
@@ -263,6 +272,7 @@ input,textarea{font-family:var(--ui);color:inherit}
       <div class="out" id="aiOut"></div>
       <div class="rrow">
         <span class="note" id="aiNote"></span>
+        <button class="btn ghost" id="btnCancel">取消</button>
         <button class="btn ghost" id="btnRetry">重试</button>
         <button class="btn solid" id="btnInsert">插入文末</button>
       </div>
@@ -371,7 +381,7 @@ input,textarea{font-family:var(--ui);color:inherit}
 
   var els = {};
   ['sidebar','works','menuBtn','mask','topTitle','topMeta','editor','aiBar','aiHint','loading',
-   'btnRewrite','btnScene','btnContinue','result','aiOut','aiNote','btnRetry','btnInsert',
+   'btnRewrite','btnScene','btnContinue','result','aiOut','aiNote','btnRetry','btnCancel','btnInsert',
    'modalMask','modalTitle','modalDesc','modalBody','toast','btnExport','btnImport','btnSettings']
   .forEach(function(id){ els[id] = document.getElementById(id); });
 
@@ -597,6 +607,7 @@ input,textarea{font-family:var(--ui);color:inherit}
   }
 
   var lastResult = { text:'', mode:'' };
+  var rewriteSource = null; // { text, label } 改写时选中的原文段落
 
   function showLoading(on){
     els.loading.classList.toggle('on', on);
@@ -607,6 +618,7 @@ input,textarea{font-family:var(--ui);color:inherit}
     lastResult = { text: text, mode: mode };
     els.aiOut.textContent = text;
     els.aiNote.textContent = note || '';
+    els.btnInsert.textContent = (mode === 'rewrite') ? '替换原文' : '插入文末';
     els.result.classList.add('on');
   }
   function hideResult(){ els.result.classList.remove('on'); }
@@ -629,22 +641,40 @@ input,textarea{font-family:var(--ui);color:inherit}
     }
   }
 
-  async function doRewrite(){
+  function splitParas(content){
+    return (content || '').split(/\n\s*\n/).map(function(s){ return s.trim(); }).filter(function(s){ return s.length > 0; });
+  }
+
+  function doRewrite(){
     var sel = selectedText();
-    if(!sel){
-      var c = currentChapter();
-      if(c && c.content){
-        sel = c.content.slice(-600);
-      } else {
-        toast('先写点内容，或选中要改写的段落');
-        return;
-      }
+    if(sel){
+      doRewriteOn(sel, '选中段落');
+      return;
     }
-    var prompt = '请把下面这段改写成更直给、更口语、身体细节更写实的版本，保持第一人称和文风，直接出改写后的正文：\n\n' + sel;
+    var c = currentChapter();
+    var paras = c ? splitParas(c.content) : [];
+    if(!paras.length){
+      toast('先写点内容，或选中要改写的段落');
+      return;
+    }
+    if(paras.length === 1){
+      doRewriteOn(paras[0], '第1段');
+    } else {
+      openParaPicker(paras);
+    }
+  }
+
+  function openParaPicker(paras){
+    openModal('改写哪一段', '点选要改写的段落。', 'pickpara', null, paras);
+  }
+
+  async function doRewriteOn(text, label){
+    rewriteSource = { text: text, label: label };
+    var prompt = '请把下面这段改写成更直给、更口语、身体细节更写实的版本，保持第一人称和文风，直接出改写后的正文：\n\n' + text;
     showLoading(true); hideResult();
     try{
       var out = await callAI(buildMessages(currentStyle(), prompt));
-      showResult(out, 'rewrite', '改写自 ' + (selectedText()? '选中段落' : '文末段落'));
+      showResult(out, 'rewrite', '改写自 ' + label);
     }catch(e){
       toast(e.message || '生成失败');
     }finally{
@@ -661,21 +691,30 @@ input,textarea{font-family:var(--ui);color:inherit}
   els.btnScene.addEventListener('click', doScene);
 
   els.btnRetry.addEventListener('click', function(){
-    if(lastResult.mode === 'rewrite'){ doRewrite(); }
-    else { doContinue(); }
+    if(lastResult.mode === 'rewrite'){
+      if(rewriteSource){ doRewriteOn(rewriteSource.text, rewriteSource.label); }
+      else { doRewrite(); }
+    } else { doContinue(); }
   });
+
+  els.btnCancel.addEventListener('click', function(){ hideResult(); });
 
   els.btnInsert.addEventListener('click', function(){
     if(!lastResult.text) return;
     var el = els.editor;
-    el.value = el.value + (el.value && !/\s$/.test(el.value) ? '\n\n' : '') + lastResult.text + '\n';
     var c = currentChapter();
+    if(lastResult.mode === 'rewrite' && rewriteSource && rewriteSource.text && el.value.indexOf(rewriteSource.text) !== -1){
+      el.value = el.value.replace(rewriteSource.text, function(){ return lastResult.text; });
+      toast('已替换原文');
+    } else {
+      el.value = el.value + (el.value && !/\s$/.test(el.value) ? '\n\n' : '') + lastResult.text + '\n';
+      toast('已插入文末');
+    }
     if(c) c.content = el.value;
     save(); renderWorks(); renderTop();
     hideResult();
     el.focus();
     el.scrollTop = el.scrollHeight;
-    toast('已插入文末');
   });
 
   // 设置
@@ -684,7 +723,7 @@ input,textarea{font-family:var(--ui);color:inherit}
   }
   els.btnSettings.addEventListener('click', openSettings);
 
-  function openModal(title, desc, mode, initialValue){
+  function openModal(title, desc, mode, initialValue, extra){
     els.modalTitle.textContent = title;
     els.modalDesc.textContent = desc;
     var html = '';
@@ -698,6 +737,14 @@ input,textarea{font-family:var(--ui);color:inherit}
     } else if(mode === 'rename'){
       html += '<div class="field"><label>名称</label><input id="inpRename" placeholder="输入名称"></div>';
       html += '<div class="row"><button class="btn ghost" id="mCancel">取消</button><button class="btn solid" id="mSave">保存</button></div>';
+    } else if(mode === 'pickpara'){
+      html += '<div class="para-list">';
+      (extra || []).forEach(function(p, i){
+        var preview = p.length > 36 ? p.slice(0, 36) + '…' : p;
+        html += '<button class="para-item" data-pi="'+i+'"><span class="pi">'+(i+1)+'</span><span class="pt">'+esc(preview)+'</span></button>';
+      });
+      html += '</div>';
+      html += '<div class="row"><button class="btn ghost" id="mCancel">取消</button></div>';
     }
     els.modalBody.innerHTML = html;
     els.modalMask.classList.add('on');
@@ -745,6 +792,15 @@ input,textarea{font-family:var(--ui);color:inherit}
         }
         renameTarget = null;
         save(); render(); closeModal(); toast('已重命名');
+      });
+    } else if(mode === 'pickpara'){
+      var pbtns = els.modalBody.querySelectorAll('.para-item');
+      Array.prototype.forEach.call(pbtns, function(btn){
+        btn.addEventListener('click', function(){
+          var i = parseInt(btn.getAttribute('data-pi'), 10);
+          closeModal();
+          doRewriteOn(extra[i], '第' + (i+1) + '段');
+        });
       });
     }
     var cancel = document.getElementById('mCancel');
