@@ -1,4 +1,4 @@
-var CACHE = 'feiye-v1';
+var CACHE = 'feiye-v2';
 var ASSETS = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', function(e){
@@ -17,6 +17,22 @@ self.addEventListener('activate', function(e){
 
 self.addEventListener('fetch', function(e){
   if(e.request.method !== 'GET') return;
+
+  // 页面导航：网络优先，拿不到再回退缓存 —— 保证每次在线打开都能看到最新版
+  if(e.request.mode === 'navigate'){
+    e.respondWith(
+      fetch(e.request).then(function(res){
+        if(res && res.status === 200){
+          var clone = res.clone();
+          caches.open(CACHE).then(function(c){ c.put(e.request, clone); });
+        }
+        return res;
+      }).catch(function(){ return caches.match(e.request); })
+    );
+    return;
+  }
+
+  // 静态资源：缓存优先
   e.respondWith(
     caches.match(e.request).then(function(r){
       return r || fetch(e.request).then(function(res){
