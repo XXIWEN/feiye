@@ -170,15 +170,6 @@ input,textarea{font-family:var(--ui);color:inherit}
 .btn.ghost:hover{background:var(--line-soft)}
 .btn.solid{background:var(--rose);color:#fff}
 .btn.solid:hover{background:var(--rose-deep)}
-.para-list{display:flex;flex-direction:column;gap:8px;margin-bottom:16px}
-.para-item{
-  display:flex;align-items:flex-start;gap:10px;text-align:left;
-  padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;
-  font-size:14px;line-height:1.5;color:var(--ink2);
-}
-.para-item:hover{border-color:var(--rose);background:var(--line-soft)}
-.para-item .pi{flex:0 0 20px;height:20px;border-radius:50%;background:var(--rose-soft);color:var(--rose-deep);font-size:12px;display:flex;align-items:center;justify-content:center;font-weight:600}
-.para-item .pt{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* AI 结果条 */
 .result{
@@ -641,31 +632,13 @@ input,textarea{font-family:var(--ui);color:inherit}
     }
   }
 
-  function splitParas(content){
-    return (content || '').split(/\n\s*\n/).map(function(s){ return s.trim(); }).filter(function(s){ return s.length > 0; });
-  }
-
   function doRewrite(){
     var sel = selectedText();
-    if(sel){
-      doRewriteOn(sel, '选中段落');
+    if(!sel){
+      toast('请先在正文里选中要改写的段落');
       return;
     }
-    var c = currentChapter();
-    var paras = c ? splitParas(c.content) : [];
-    if(!paras.length){
-      toast('先写点内容，或选中要改写的段落');
-      return;
-    }
-    if(paras.length === 1){
-      doRewriteOn(paras[0], '第1段');
-    } else {
-      openParaPicker(paras);
-    }
-  }
-
-  function openParaPicker(paras){
-    openModal('改写哪一段', '点选要改写的段落。', 'pickpara', null, paras);
+    doRewriteOn(sel, '选中段落');
   }
 
   async function doRewriteOn(text, label){
@@ -737,14 +710,6 @@ input,textarea{font-family:var(--ui);color:inherit}
     } else if(mode === 'rename'){
       html += '<div class="field"><label>名称</label><input id="inpRename" placeholder="输入名称"></div>';
       html += '<div class="row"><button class="btn ghost" id="mCancel">取消</button><button class="btn solid" id="mSave">保存</button></div>';
-    } else if(mode === 'pickpara'){
-      html += '<div class="para-list">';
-      (extra || []).forEach(function(p, i){
-        var preview = p.length > 36 ? p.slice(0, 36) + '…' : p;
-        html += '<button class="para-item" data-pi="'+i+'"><span class="pi">'+(i+1)+'</span><span class="pt">'+esc(preview)+'</span></button>';
-      });
-      html += '</div>';
-      html += '<div class="row"><button class="btn ghost" id="mCancel">取消</button></div>';
     }
     els.modalBody.innerHTML = html;
     els.modalMask.classList.add('on');
@@ -792,15 +757,6 @@ input,textarea{font-family:var(--ui);color:inherit}
         }
         renameTarget = null;
         save(); render(); closeModal(); toast('已重命名');
-      });
-    } else if(mode === 'pickpara'){
-      var pbtns = els.modalBody.querySelectorAll('.para-item');
-      Array.prototype.forEach.call(pbtns, function(btn){
-        btn.addEventListener('click', function(){
-          var i = parseInt(btn.getAttribute('data-pi'), 10);
-          closeModal();
-          doRewriteOn(extra[i], '第' + (i+1) + '段');
-        });
       });
     }
     var cancel = document.getElementById('mCancel');
